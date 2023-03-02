@@ -27,6 +27,7 @@ import java.util.Map;
 
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
+import org.xhtmlrenderer.css.constants.CSSName;
 import org.xhtmlrenderer.extend.FSImage;
 import org.xhtmlrenderer.extend.ReplacedElement;
 import org.xhtmlrenderer.extend.ReplacedElementFactory;
@@ -58,11 +59,37 @@ public class ITextReplacedElementFactory implements ReplacedElementFactory {
             if (srcAttr != null && srcAttr.length() > 0) {
                 FSImage fsImage = uac.getImageResource(srcAttr).getImage();
                 if (fsImage != null) {
-                    if (cssWidth != -1 || cssHeight != -1) {
-                        fsImage.scale(cssWidth, cssHeight);
+                    // fix stolen from https://github.com/danfickle/openhtmltopdf/pull/48/files
+                    boolean hasMaxProperty = !box.getStyle().isMaxWidthNone() || !box.getStyle().isMaxHeightNone();
+                    if (cssWidth == -1 && cssHeight == -1) {
+                        if (hasMaxProperty) {
+                            long maxWidth = box.getStyle().asLength(c, CSSName.MAX_WIDTH).value();
+                            long maxHeight = box.getStyle().asLength(c, CSSName.MAX_HEIGHT).value();
+                            int intrinsicHeight = fsImage.getHeight();
+                            int intrinsicWidth = fsImage.getWidth();
+                            if (intrinsicHeight > maxHeight && intrinsicHeight >= intrinsicWidth) {
+                                fsImage.scale(-1, (int) maxHeight);
+                            } else if (intrinsicWidth > maxWidth) {
+                                fsImage.scale((int) maxWidth, -1);
+                            }
+                        }
+                    } else {
+                        if (hasMaxProperty) {
+                            long maxWidth = box.getStyle().asLength(c, CSSName.MAX_WIDTH).value();
+                            long maxHeight = box.getStyle().asLength(c, CSSName.MAX_HEIGHT).value();
+                            if (cssHeight > maxHeight && cssHeight >= cssWidth) {
+                                fsImage.scale(-1, (int) maxHeight);
+                            } else if (cssWidth > maxWidth) {
+                                fsImage.scale((int) maxWidth, -1);
+                            } else {
+                                fsImage.scale(cssWidth, cssHeight);
+                            }
+                        } else {
+                            fsImage.scale(cssWidth, cssHeight);
+                        }
                     }
                     return new ITextImageElement(fsImage);
-                }                    
+                }
             }
 
         } else if (nodeName.equals("input")) {
